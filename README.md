@@ -3,13 +3,17 @@
 > **Seated, hands-only WebXR morning planner in passthrough AR for Meta Quest 3 & Quest 3S.**  
 > Built for the **Meta VR Start Developer Competition 2026** · *Productivity Track (New Experience Division)*
 
+<p align="center">
+  <img src="pin-and-plan-media/02-passthrough-intro-and-hint.png" alt="Pin & Plan in Passthrough AR" width="90%" style="border-radius: 8px;" />
+</p>
+
 ---
 
 ## 🔗 Quick Links
 
 - 🚀 **Live WebXR App:** [https://pin-and-plan.vercel.app](https://pin-and-plan.vercel.app)
 - 🏆 **Devpost Project:** [https://devpost.com/software/pin-plan](https://devpost.com/software/pin-plan)
-- 📺 **Demonstration Video:** [Watch on YouTube](https://youtu.be/hPLJEprhNcc)
+- 📺 **Demonstration Video:** [Watch on YouTube](https://youtu.be/hPLJEprhNcc) · [Local MP4](pin-and-plan-media/pin-and-plan-demo.mp4)
 
 ---
 
@@ -33,6 +37,43 @@ morning time blocks.       remaining tasks with staged       and the agent re-pl
 
 ---
 
+## 📸 Visual Walkthrough & Gallery
+
+<table width="100%">
+  <tr>
+    <td width="50%" align="center">
+      <img src="pin-and-plan-media/01-landing-enter-ar.png" width="100%" alt="01 Enter AR Landing" />
+      <br /><b>01. Enter AR Landing</b><br /><sub>One-tap WebXR immersive-ar session launch</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="pin-and-plan-media/02-passthrough-intro-and-hint.png" width="100%" alt="02 Passthrough Arc & Hint" />
+      <br /><b>02. Seated Desk Arc & Ghost Hint</b><br /><sub>Ergonomic 100° desk arc with subtle onboarding hint</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="pin-and-plan-media/03-pinned-task-and-orb-pulse.png" width="100%" alt="03 User Pin & Agent Orb" />
+      <br /><b>03. User Pin & Agent Orb</b><br /><sub>Locked yellow user pins & ready-to-trigger violet agent orb</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="pin-and-plan-media/04-agent-staged-reason-chips.png" width="100%" alt="04 Agent Staged Reasoning" />
+      <br /><b>04. Agent Staging & 3D Reason Chips</b><br /><sub>Staged placement explaining every scheduling rule in 3D</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="pin-and-plan-media/05-day-planned-card-and-chips.png" width="100%" alt="05 Day Planned Completion" />
+      <br /><b>05. "Day Planned" Completion</b><br /><sub>Satisfying completion card and pinchable reset control</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="pin-and-plan-media/06-take-back-and-replan.png" width="100%" alt="06 Take Back & Fluid Replan" />
+      <br /><b>06. Take Back & Minimal Re-planning</b><br /><sub>Seamlessly override agent decisions with instant minimal re-plan</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## ⚡ Technical Highlights
 
 - **100% Hands-Only Experience:** No controllers, no virtual laser pointers, no pinch keyboards. Fully driven by Meta Quest natural hand tracking via Meta Immersive Web SDK (`@immersive-web/sdk` 1.1).
@@ -47,7 +88,7 @@ morning time blocks.       remaining tasks with staged       and the agent re-pl
 
 ```
 .
-├── README.md               # Main project documentation
+├── README.md               # Main project documentation with visual walkthrough
 ├── LICENSE                 # Project License
 ├── index.html              # WebXR entry point with Enter AR overlay
 ├── package.json            # Dependencies & scripts
@@ -55,6 +96,14 @@ morning time blocks.       remaining tasks with staged       and the agent re-pl
 ├── vite.config.ts          # Vite configuration with HTTPS support
 ├── vitest.config.ts        # Unit test runner configuration
 ├── iwsdk.config.json       # Meta Immersive Web SDK config
+├── pin-and-plan-media/     # High-resolution screenshots & demo recording
+│   ├── 01-landing-enter-ar.png
+│   ├── 02-passthrough-intro-and-hint.png
+│   ├── 03-pinned-task-and-orb-pulse.png
+│   ├── 04-agent-staged-reason-chips.png
+│   ├── 05-day-planned-card-and-chips.png
+│   ├── 06-take-back-and-replan.png
+│   └── pin-and-plan-demo.mp4
 └── src/
     ├── planner/            # Pure deterministic scheduling engine
     │   ├── plan.ts         # Core scheduling algorithm
