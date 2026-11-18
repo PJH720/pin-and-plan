@@ -26,6 +26,7 @@ references-do-not-upload/
 node_modules/
 dist/
 .vercel/
+.vercelignore
 .iwsdk/
 .iwsdk-browser-*/
 
