@@ -1,0 +1,41 @@
+# Competition & internal specs / SDD documents
+ARCHITECTURE.md
+DESIGN.md
+SUBMISSION.md
+AGENTS.md
+CLAUDE.md
+MEMORY.md
+specs/
+.specify/
+scripts/
+references-do-not-upload/
+pin-and-plan-media/
+
+# Agent & AI tool directories / configs
+.claude/
+.agents/
+.cursor/
+.codex/
+.omc/
+.omx/
+.playwright-mcp/
+.remember/
+.agent-state/
+.mcp.json
+
+# Dependencies & Build artifacts
+node_modules/
+dist/
+.vercel/
+.iwsdk/
+.iwsdk-browser-*/
+
+# Environment & credentials
+.env
+.env.*
+*.local
+
+# System & logs
+.DS_Store
+Thumbs.db
+*.log
