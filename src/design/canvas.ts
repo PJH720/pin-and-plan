@@ -1,4 +1,9 @@
-import { CanvasTexture, LinearFilter, SRGBColorSpace } from '@iwsdk/core';
+import {
+  CanvasTexture,
+  LinearFilter,
+  LinearMipmapLinearFilter,
+  SRGBColorSpace,
+} from '@iwsdk/core';
 import type { Block, Task } from '../planner/types.js';
 import { BLOCK_SIZE, SLOT_OFFSETS_Y, TOKEN_SIZE } from '../scene/layout.js';
 import {
@@ -20,8 +25,8 @@ export interface BlockTextureSet {
 
 const TEXTURE_ANISOTROPY = 4;
 
-function font(weight: number, sizePx: number, mono = false): string {
-  return `${weight} ${sizePx}px ${mono ? TYPOGRAPHY.mono : TYPOGRAPHY.family}`;
+function font(weight: number, sizePx: number): string {
+  return `${weight} ${sizePx}px ${TYPOGRAPHY.family}`;
 }
 
 function createContext(
@@ -41,10 +46,10 @@ function createContext(
 function toTexture(ctx: CanvasRenderingContext2D): CanvasTexture {
   const texture = new CanvasTexture(ctx.canvas);
   texture.colorSpace = SRGBColorSpace;
-  texture.minFilter = LinearFilter;
+  texture.minFilter = LinearMipmapLinearFilter;
   texture.magFilter = LinearFilter;
   texture.anisotropy = TEXTURE_ANISOTROPY;
-  texture.generateMipmaps = false;
+  texture.generateMipmaps = true;
   return texture;
 }
 
@@ -87,7 +92,8 @@ function drawFittedText(
   ctx.fillStyle = colour;
   ctx.textAlign = align;
   ctx.textBaseline = 'middle';
-  const x = align === 'left' ? left : align === 'right' ? right : (left + right) / 2;
+  const x =
+    align === 'left' ? left : align === 'right' ? right : (left + right) / 2;
   ctx.fillText(text, x, centreY);
 }
 
@@ -141,57 +147,55 @@ function drawUrgentIcon(
 }
 
 /**
- * Tactile spatial task card face (512 x 216).
- * Outer bezel wraps cleanly onto BoxGeometry thin edges; inner face presents
- * calibrated energy gradient, left glow stripe, vector badge, and crisp label.
+ * Tactile ceramic/stone spatial task tile (512 x 216).
+ * Outer matte bezel wraps onto BoxGeometry thin edges (single draw call).
  */
 export function createTokenTexture(task: Task): CanvasTexture {
   const { width, height } = CANVAS_BUDGETS.token;
   const ctx = createContext(width, height);
   const palette =
-    task.energy === undefined ? NEUTRAL_TOKEN_PALETTE : ENERGY_PALETTES[task.energy];
+    task.energy === undefined
+      ? NEUTRAL_TOKEN_PALETTE
+      : ENERGY_PALETTES[task.energy];
 
-  // Solid bezel background so thin BoxGeometry side walls look metallic obsidian
   ctx.fillStyle = PALETTE.edgeBezel;
   ctx.fillRect(0, 0, width, height);
 
-  // Inner rounded glass card body
   const pad = 8;
   const cardW = width - pad * 2;
   const cardH = height - pad * 2;
-  roundedRect(ctx, pad, pad, cardW, cardH, 28);
+  roundedRect(ctx, pad, pad, cardW, cardH, 26);
   const bgGrad = ctx.createLinearGradient(0, pad, 0, height - pad);
   bgGrad.addColorStop(0, palette.top);
   bgGrad.addColorStop(1, palette.bottom);
   ctx.fillStyle = bgGrad;
   ctx.fill();
 
-  // Subtle top specular glass sheen
+  // Gentle sunlit top matte highlight
   ctx.save();
-  roundedRect(ctx, pad, pad, cardW, cardH, 28);
+  roundedRect(ctx, pad, pad, cardW, cardH, 26);
   ctx.clip();
-  const sheenGrad = ctx.createLinearGradient(0, pad, 0, pad + cardH * 0.48);
-  sheenGrad.addColorStop(0, 'rgba(255, 255, 255, 0.16)');
-  sheenGrad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+  const sheenGrad = ctx.createLinearGradient(0, pad, 0, pad + cardH * 0.45);
+  sheenGrad.addColorStop(0, 'rgba(255, 252, 245, 0.14)');
+  sheenGrad.addColorStop(1, 'rgba(255, 252, 245, 0.0)');
   ctx.fillStyle = sheenGrad;
-  ctx.fillRect(pad, pad, cardW, cardH * 0.48);
+  ctx.fillRect(pad, pad, cardW, cardH * 0.45);
 
-  // Left vertical energy accent bar
+  // Subtle left vertical accent bar
   const barColour = task.urgent === true ? PALETTE.urgentAccent : palette.accent;
   ctx.fillStyle = barColour;
-  roundedRect(ctx, pad + 14, pad + 26, 10, cardH - 52, 5);
+  roundedRect(ctx, pad + 14, pad + 28, 9, cardH - 56, 4.5);
   ctx.fill();
   ctx.restore();
 
-  // Crisp inner rim stroke
-  roundedRect(ctx, pad + 1.5, pad + 1.5, cardW - 3, cardH - 3, 27);
+  // Hairline bevel rim
+  roundedRect(ctx, pad + 1.5, pad + 1.5, cardW - 3, cardH - 3, 25);
   ctx.strokeStyle = palette.rim;
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Optional clock / urgent badge
-  let contentLeft = pad + 44;
-  const iconRadius = 26;
+  let contentLeft = pad + 42;
+  const iconRadius = 25;
   if (task.fixed !== undefined) {
     drawClockIcon(ctx, contentLeft + iconRadius, height / 2, iconRadius);
     contentLeft += iconRadius * 2 + 18;
@@ -201,7 +205,6 @@ export function createTokenTexture(task: Task): CanvasTexture {
     contentLeft += iconRadius * 2 + 18;
   }
 
-  // Subtle metadata tag above task title for visual hierarchy
   const tagText =
     task.fixed !== undefined
       ? 'FIXED'
@@ -210,20 +213,19 @@ export function createTokenTexture(task: Task): CanvasTexture {
         : palette.tag;
   const tagColour =
     task.urgent === true ? PALETTE.urgentAccent : palette.pillInk;
-  ctx.font = font(700, 20);
+  ctx.font = font(700, 22);
   ctx.fillStyle = tagColour;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(tagText, contentLeft, height * 0.31);
+  ctx.fillText(tagText, contentLeft, height * 0.3);
 
-  // Primary task label
   drawFittedText(
     ctx,
     task.label,
     contentLeft,
-    width - 34,
-    height * 0.63,
-    46,
+    width - 28,
+    height * 0.64,
+    50,
     700,
     PALETTE.inkPrimary,
     'left',
@@ -243,9 +245,8 @@ function drawBlockFace(block: Block, state: BlockHighlight): CanvasTexture {
   const margin = 10;
   const panelW = width - margin * 2;
   const panelH = height - margin * 2;
-  const cornerR = 44;
+  const cornerR = 40;
 
-  // Ambient hover outer glow (pre-drop affordance & error prevention)
   if (state !== 'idle') {
     ctx.save();
     roundedRect(ctx, margin, margin, panelW, panelH, cornerR);
@@ -253,7 +254,7 @@ function drawBlockFace(block: Block, state: BlockHighlight): CanvasTexture {
       state === 'valid'
         ? PALETTE.glassHoverValidBorder
         : PALETTE.glassHoverFullBorder;
-    ctx.shadowBlur = 22;
+    ctx.shadowBlur = 18;
     ctx.fillStyle =
       state === 'valid'
         ? PALETTE.glassHoverValidGlow
@@ -262,7 +263,7 @@ function drawBlockFace(block: Block, state: BlockHighlight): CanvasTexture {
     ctx.restore();
   }
 
-  // VisionOS dark obsidian frosted glass body
+  // Warm smoked architectural glass panel
   roundedRect(ctx, margin, margin, panelW, panelH, cornerR);
   const grad = ctx.createLinearGradient(0, margin, 0, height - margin);
   grad.addColorStop(0, PALETTE.glassTop);
@@ -270,35 +271,32 @@ function drawBlockFace(block: Block, state: BlockHighlight): CanvasTexture {
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // Top specular rim & subtle header tint
   ctx.save();
   roundedRect(ctx, margin, margin, panelW, panelH, cornerR);
   ctx.clip();
 
-  const headerGlow = ctx.createLinearGradient(0, margin, 0, margin + 150);
+  const headerGlow = ctx.createLinearGradient(0, margin, 0, margin + 145);
   if (state === 'valid') {
-    headerGlow.addColorStop(0, 'rgba(99, 102, 241, 0.28)');
-    headerGlow.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+    headerGlow.addColorStop(0, 'rgba(240, 212, 162, 0.24)');
+    headerGlow.addColorStop(1, 'rgba(240, 212, 162, 0.0)');
   } else if (state === 'full') {
-    headerGlow.addColorStop(0, 'rgba(239, 68, 68, 0.28)');
-    headerGlow.addColorStop(1, 'rgba(239, 68, 68, 0.0)');
+    headerGlow.addColorStop(0, 'rgba(224, 96, 84, 0.26)');
+    headerGlow.addColorStop(1, 'rgba(224, 96, 84, 0.0)');
   } else {
-    headerGlow.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
-    headerGlow.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+    headerGlow.addColorStop(0, 'rgba(255, 250, 242, 0.07)');
+    headerGlow.addColorStop(1, 'rgba(255, 250, 242, 0.0)');
   }
   ctx.fillStyle = headerGlow;
-  ctx.fillRect(margin, margin, panelW, 150);
+  ctx.fillRect(margin, margin, panelW, 145);
 
-  // Subtle horizontal divider below header
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.strokeStyle = 'rgba(255, 250, 242, 0.09)';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(margin + 32, margin + 122);
-  ctx.lineTo(width - margin - 32, margin + 122);
+  ctx.moveTo(margin + 32, margin + 124);
+  ctx.lineTo(width - margin - 32, margin + 124);
   ctx.stroke();
   ctx.restore();
 
-  // Glass border rim
   roundedRect(ctx, margin + 2, margin + 2, panelW - 4, panelH - 4, cornerR - 1);
   ctx.strokeStyle =
     state === 'valid'
@@ -309,10 +307,10 @@ function drawBlockFace(block: Block, state: BlockHighlight): CanvasTexture {
   ctx.lineWidth = state === 'idle' ? 3 : 5;
   ctx.stroke();
 
-  // Top edge specular glint
+  // Warm daylight top specular line
   ctx.save();
   ctx.strokeStyle =
-    state === 'idle' ? PALETTE.glassSpecular : 'rgba(255, 255, 255, 0.52)';
+    state === 'idle' ? PALETTE.glassSpecular : 'rgba(255, 252, 245, 0.62)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(margin + cornerR, margin + 2.5);
@@ -320,35 +318,37 @@ function drawBlockFace(block: Block, state: BlockHighlight): CanvasTexture {
   ctx.stroke();
   ctx.restore();
 
-  // Period eyebrow label (MORNING / AFTERNOON / EVENING / NIGHT)
   const period = BLOCK_PERIODS[block.id] ?? 'BLOCK';
   const eyebrowColour =
     state === 'full'
-      ? '#fca5a5'
+      ? '#f8b4ad'
       : state === 'valid'
-        ? '#93c5fd'
+        ? '#f6deb0'
         : PALETTE.inkSecondary;
-  ctx.font = font(700, 20);
+  ctx.font = font(700, 22);
   ctx.fillStyle = eyebrowColour;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(state === 'full' ? `${period} · FULL` : period, width / 2, margin + 42);
+  ctx.fillText(
+    state === 'full' ? `${period} · FULL` : period,
+    width / 2,
+    margin + 40,
+  );
 
-  // Crisp time-range header with proper en-dash
   const displayTime = block.label.replace('-', ' – ');
   drawFittedText(
     ctx,
     displayTime,
-    margin + 28,
-    width - margin - 28,
-    margin + 86,
-    46,
+    margin + 24,
+    width - margin - 24,
+    margin + 88,
+    48,
     700,
     PALETTE.inkPrimary,
     'center',
   );
 
-  // Two recessed rounded slot wells aligned exactly to SLOT_OFFSETS_Y
+  // Two recessed rounded slot wells
   const slotW = TOKEN_SIZE.width * pxPerMetreX + 20;
   const slotH = TOKEN_SIZE.height * pxPerMetreY + 20;
   const slotX = (width - slotW) / 2;
@@ -387,7 +387,10 @@ export function createBlockTextures(block: Block): BlockTextureSet {
   };
 }
 
-/** Reusable pill-shaped XAI reason chip texture (512 x 118). */
+/**
+ * Editorial warm cream-paper XAI reason pill (512 x 118).
+ * High contrast against dark blocks and sunlit rooms—zero neon borders.
+ */
 export function createChipCanvas(): {
   readonly texture: CanvasTexture;
   readonly draw: (reason: string) => void;
@@ -417,20 +420,16 @@ export function createChipCanvas(): {
 
     roundedRect(ctx, pad + 2, pad + 2, w - 4, h - 4, r - 1);
     ctx.strokeStyle = PALETTE.chipBorder;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Luminous agent indicator dot on the left
+    // Terracotta editorial indicator dot
     const dotX = pad + 34;
     const dotY = height / 2;
-    ctx.save();
-    ctx.shadowColor = PALETTE.chipDot;
-    ctx.shadowBlur = 12;
     ctx.fillStyle = PALETTE.chipDot;
     ctx.beginPath();
     ctx.arc(dotX, dotY, 10, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
 
     const display = reason.replace('->', '→');
     drawFittedText(
@@ -441,7 +440,7 @@ export function createChipCanvas(): {
       height / 2,
       36,
       600,
-      PALETTE.inkPrimary,
+      PALETTE.inkDark,
       'center',
     );
     texture.needsUpdate = true;
@@ -451,7 +450,7 @@ export function createChipCanvas(): {
   return { texture, draw };
 }
 
-/** Celebratory "Day planned" VisionOS emerald-glass banner (AC-9). */
+/** Calm botanical sage-glass "Day planned" card (AC-9). */
 export function createEndCardTexture(): CanvasTexture {
   const { width, height } = CANVAS_BUDGETS.endCard;
   const ctx = createContext(width, height);
@@ -474,10 +473,9 @@ export function createEndCardTexture(): CanvasTexture {
   ctx.lineWidth = 4;
   ctx.stroke();
 
-  // Crisp checkmark badge on the left
   const badgeX = pad + 64;
   const badgeY = height / 2;
-  ctx.fillStyle = 'rgba(52, 211, 153, 0.22)';
+  ctx.fillStyle = 'rgba(154, 198, 174, 0.22)';
   ctx.beginPath();
   ctx.arc(badgeX, badgeY, 34, 0, Math.PI * 2);
   ctx.fill();
@@ -505,15 +503,15 @@ export function createEndCardTexture(): CanvasTexture {
   );
 
   ctx.font = font(500, 22);
-  ctx.fillStyle = '#a7f3d0';
+  ctx.fillStyle = '#c5e2d2';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText('All 6 tasks scheduled · Pinch reset anytime', badgeX + 54, height * 0.72);
+  ctx.fillText('All 6 tasks scheduled · Reset anytime', badgeX + 54, height * 0.72);
 
   return toTexture(ctx);
 }
 
-/** Crisp frosted circular reset button (256 x 256, icon only). */
+/** Crisp frosted warm-stone circular reset button (256 x 256, icon only). */
 export function createResetTexture(): CanvasTexture {
   const { size } = CANVAS_BUDGETS.reset;
   const ctx = createContext(size, size);
@@ -522,20 +520,19 @@ export function createResetTexture(): CanvasTexture {
   ctx.clearRect(0, 0, size, size);
 
   const bg = ctx.createRadialGradient(c, c - 24, 16, c, c, r);
-  bg.addColorStop(0, 'rgba(51, 65, 85, 0.94)');
-  bg.addColorStop(1, 'rgba(15, 23, 42, 0.96)');
+  bg.addColorStop(0, 'rgba(54, 52, 48, 0.92)');
+  bg.addColorStop(1, 'rgba(26, 25, 23, 0.96)');
   ctx.fillStyle = bg;
   ctx.beginPath();
   ctx.arc(c, c, r, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.24)';
+  ctx.strokeStyle = 'rgba(255, 250, 242, 0.28)';
   ctx.lineWidth = 6;
   ctx.beginPath();
   ctx.arc(c, c, r - 3, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Clean vector circular refresh arrow
   ctx.strokeStyle = PALETTE.inkPrimary;
   ctx.lineWidth = 14;
   ctx.lineCap = 'round';
@@ -554,39 +551,38 @@ export function createResetTexture(): CanvasTexture {
   return toTexture(ctx);
 }
 
-/** Tactile luminous gold pin emblem (128 x 128). */
+/** Brushed solid brass pin emblem (128 x 128). */
 export function createPinEmblemTexture(): CanvasTexture {
   const { size } = CANVAS_BUDGETS.pin;
   const ctx = createContext(size, size);
   const c = size / 2;
   ctx.clearRect(0, 0, size, size);
 
-  // Soft gold aura
-  const glow = ctx.createRadialGradient(c, c, 12, c, c, c - 4);
-  glow.addColorStop(0, 'rgba(251, 191, 36, 0.95)');
-  glow.addColorStop(0.58, 'rgba(251, 191, 36, 0.55)');
-  glow.addColorStop(1, 'rgba(251, 191, 36, 0)');
-  ctx.fillStyle = glow;
+  // Subtle dark contact shadow for depth
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
   ctx.beginPath();
-  ctx.arc(c, c, c - 4, 0, Math.PI * 2);
+  ctx.arc(c, c + 4, 42, 0, Math.PI * 2);
   ctx.fill();
 
-  // Solid gold disc
-  ctx.fillStyle = PALETTE.pinGold;
+  // Solid brushed brass disc
+  const brass = ctx.createRadialGradient(c - 10, c - 10, 6, c, c, 38);
+  brass.addColorStop(0, PALETTE.pinRim);
+  brass.addColorStop(0.55, PALETTE.pinGold);
+  brass.addColorStop(1, '#b67d22');
+  ctx.fillStyle = brass;
   ctx.beginPath();
-  ctx.arc(c, c, 34, 0, Math.PI * 2);
+  ctx.arc(c, c, 38, 0, Math.PI * 2);
   ctx.fill();
 
-  // Crisp white specular core
   ctx.fillStyle = PALETTE.pinCore;
   ctx.beginPath();
-  ctx.arc(c - 7, c - 7, 11, 0, Math.PI * 2);
+  ctx.arc(c - 10, c - 10, 9, 0, Math.PI * 2);
   ctx.fill();
 
   return toTexture(ctx);
 }
 
-/** Subtle frosted glass tray surface grounding the 6 unplaced tokens. */
+/** Subtle smoked-stone frosted tray mat grounding the 6 unplaced tokens. */
 export function createTrayRailTexture(): CanvasTexture {
   const { width, height } = CANVAS_BUDGETS.trayRail;
   const ctx = createContext(width, height);
@@ -597,20 +593,20 @@ export function createTrayRailTexture(): CanvasTexture {
   const h = height - pad * 2;
   roundedRect(ctx, pad, pad, w, h, 36);
   const grad = ctx.createLinearGradient(0, pad, 0, height - pad);
-  grad.addColorStop(0, 'rgba(30, 41, 59, 0.52)');
-  grad.addColorStop(1, 'rgba(15, 23, 42, 0.68)');
+  grad.addColorStop(0, 'rgba(34, 32, 29, 0.42)');
+  grad.addColorStop(1, 'rgba(22, 21, 19, 0.54)');
   ctx.fillStyle = grad;
   ctx.fill();
 
   roundedRect(ctx, pad + 2, pad + 2, w - 4, h - 4, 34);
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+  ctx.strokeStyle = 'rgba(255, 250, 242, 0.22)';
   ctx.lineWidth = 3;
   ctx.stroke();
 
   return toTexture(ctx);
 }
 
-/** Glowing translucent rounded outline card for the non-text onboarding ghost hint. */
+/** Soft warm-ivory rounded outline card for the non-text onboarding ghost hint. */
 export function createGhostHintTexture(): CanvasTexture {
   const { width, height } = CANVAS_BUDGETS.token;
   const ctx = createContext(width, height);
@@ -620,17 +616,14 @@ export function createGhostHintTexture(): CanvasTexture {
   const w = width - pad * 2;
   const h = height - pad * 2;
 
-  roundedRect(ctx, pad, pad, w, h, 30);
-  const bg = ctx.createLinearGradient(0, pad, width, height - pad);
-  bg.addColorStop(0, 'rgba(129, 140, 248, 0.34)');
-  bg.addColorStop(1, 'rgba(56, 189, 248, 0.24)');
-  ctx.fillStyle = bg;
+  roundedRect(ctx, pad, pad, w, h, 28);
+  ctx.fillStyle = 'rgba(250, 244, 232, 0.24)';
   ctx.fill();
 
   ctx.save();
   ctx.setLineDash([16, 12]);
-  roundedRect(ctx, pad + 3, pad + 3, w - 6, h - 6, 28);
-  ctx.strokeStyle = 'rgba(199, 210, 254, 0.9)';
+  roundedRect(ctx, pad + 3, pad + 3, w - 6, h - 6, 26);
+  ctx.strokeStyle = 'rgba(255, 250, 240, 0.88)';
   ctx.lineWidth = 6;
   ctx.stroke();
   ctx.restore();

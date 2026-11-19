@@ -236,6 +236,7 @@ export class PlannerSystem extends createSystem({
       return;
     }
     this.immersive = immersive;
+    this.rig.roomBackdrop.visible = !immersive;
     if (immersive) {
       this.anchorPending = true;
       return;
@@ -397,8 +398,8 @@ export class PlannerSystem extends createSystem({
 
   private isBlockFullOfOtherPins(blockId: string, taskId: string): boolean {
     let count = 0;
-    for (const [pinnedTask, pinnedBlock] of Object.entries(this.pins)) {
-      if (pinnedBlock === blockId && pinnedTask !== taskId) {
+    for (const pinnedTask in this.pins) {
+      if (this.pins[pinnedTask] === blockId && pinnedTask !== taskId) {
         count += 1;
       }
     }

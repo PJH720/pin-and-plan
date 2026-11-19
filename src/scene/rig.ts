@@ -43,6 +43,7 @@ import {
   TRAY_SPOTS,
   type Spot,
 } from './layout.js';
+import { buildSunlitRoomBackdrop } from './room-backdrop.js';
 
 const PIN_EMBLEM_RADIUS = 0.0085;
 const PIN_INSET_X = 0.009;
@@ -83,6 +84,8 @@ export interface Rig {
   /** Parent of every planner object; placed at the head at session start. */
   readonly anchor: Group;
   readonly anchorEntity: Entity;
+  /** Procedural sunlit morning room visible ONLY in Non-XR desktop/mobile preview. */
+  readonly roomBackdrop: Group;
   readonly blocks: readonly BlockView[];
   readonly tokens: readonly TokenView[];
   readonly orbEntity: Entity;
@@ -117,6 +120,7 @@ export function buildRig(world: World): Rig {
   const anchorEntity = world.createTransformEntity(anchor, {
     persistent: true,
   });
+  const roomBackdrop = buildSunlitRoomBackdrop(world, anchorEntity);
 
   const addAt = (object: Object3D, spot: Spot): Entity => {
     const entity = world.createTransformEntity(object, {
@@ -251,6 +255,7 @@ export function buildRig(world: World): Rig {
   return {
     anchor,
     anchorEntity,
+    roomBackdrop,
     blocks,
     tokens,
     orbEntity,

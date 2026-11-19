@@ -107,9 +107,9 @@ function hintForPhase(snapshot: PlannerSnapshot, arSupported: boolean): string {
     return 'Day planned — drag any task to another block to take back & re-plan';
   }
   if (snapshot.phase === 'pinning') {
-    return 'Pinned! Click the glowing violet orb on the right to hand over the rest';
+    return 'Pinned! Click the pearl glass orb on the right to hand over the rest';
   }
-  return 'Interactive Preview: Drag any task onto a time block, or click the glowing orb';
+  return 'Interactive Preview: Drag any task onto a time block, or click the pearl orb';
 }
 
 /**
@@ -192,7 +192,7 @@ export function mountHud(world: World, planner: PlannerSystem): () => void {
   const hintEl = document.createElement('p');
   hintEl.className = 'hud-hint';
   hintEl.textContent =
-    'Interactive Preview: Drag any task onto a time block, or click the glowing orb';
+    'Interactive Preview: Drag any task onto a time block, or click the pearl orb';
 
   const dock = document.createElement('nav');
   dock.className = 'hud-dock';
@@ -258,7 +258,8 @@ export function mountHud(world: World, planner: PlannerSystem): () => void {
       statusLabelEl.textContent = 'WebXR AR Ready';
     } else {
       statusEl.dataset.state = 'preview';
-      statusLabelEl.textContent = 'Desktop Preview · AR on Quest / IWER';
+      statusLabelEl.innerHTML =
+        'Desktop Preview<span class="hud-status-extra"> · AR on Quest / IWER</span>';
     }
     refreshText();
   });
