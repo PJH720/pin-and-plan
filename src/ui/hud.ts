@@ -174,7 +174,7 @@ export function mountHud(world: World, planner: PlannerSystem): () => void {
     <div class="hud-popover-footer">
       <span style="color:var(--ink-muted);">Zero controllers · 60 cm seated reach</span>
       <div class="hud-popover-links">
-        <a href="https://youtu.be/hPLJEprhNcc" target="_blank" rel="noopener noreferrer">Demo Video ↗</a>
+        <a href="https://youtu.be/Hvk4ZjlLaIg" target="_blank" rel="noopener noreferrer">Demo Video ↗</a>
         <a href="https://github.com/PJH720/pin-and-plan" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
       </div>
     </div>
@@ -221,7 +221,7 @@ export function mountHud(world: World, planner: PlannerSystem): () => void {
 
   const demoLink = document.createElement('a');
   demoLink.className = 'hud-btn-ghost';
-  demoLink.href = 'https://youtu.be/hPLJEprhNcc';
+  demoLink.href = 'https://youtu.be/Hvk4ZjlLaIg';
   demoLink.target = '_blank';
   demoLink.rel = 'noopener noreferrer';
   demoLink.textContent = 'Demo ↗';

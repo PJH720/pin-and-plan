@@ -4,7 +4,7 @@
 > Built for the **Meta VR Start Developer Competition 2026** · *Productivity Track (New Experience Division)*
 
 <p align="center">
-  <img src="pin-and-plan-media/03-pinned-task-and-orb-pulse.png" alt="Pin & Plan — Hands-Only Meta Quest 3 Passthrough AR Morning Planner" width="92%" />
+  <img src="pin-and-plan-media/04-agent-staged-reason-chips.png" alt="Pin & Plan — Hands-Only Meta Quest 3 Passthrough AR Morning Planner with 3D XAI Reason Chips" width="94%" />
 </p>
 
 ---
@@ -12,8 +12,8 @@
 ## 🔗 Quick Links
 
 - 🚀 **Live WebXR App (with Desktop Preview):** [https://pin-and-plan.vercel.app](https://pin-and-plan.vercel.app)
+- 📺 **1080p Demonstration Video (YouTube):** [https://youtu.be/Hvk4ZjlLaIg](https://youtu.be/Hvk4ZjlLaIg) · [Local 1080p MP4](pin-and-plan-media/pin-and-plan-demo.mp4)
 - 🏆 **Devpost Project:** [https://devpost.com/software/pin-plan](https://devpost.com/software/pin-plan)
-- 📺 **Demonstration Video:** [Watch on YouTube](https://youtu.be/hPLJEprhNcc) · [Local MP4](pin-and-plan-media/pin-and-plan-demo.mp4)
 
 ---
 
@@ -68,6 +68,18 @@ morning time blocks.       remaining tasks step-by-step      and the agent re-pl
     <td width="50%" align="center">
       <img src="pin-and-plan-media/06-take-back-and-replan.png" width="100%" alt="06 Take Back & Minimal Replan in Quest 3 AR" />
       <br /><b>06. Take Back &amp; Minimal Re-Planning</b><br /><sub>Grab any scheduled task to override; earlier user pins always hold</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="pin-and-plan-media/07-ar-setup-guide.png" width="100%" alt="07 Cross-Device WebXR AR Setup Guide Popover" />
+      <br /><b>07. Native Top-Layer AR Setup Popover</b><br /><sub>Instant Quest 3 &amp; IWER onboarding on non-XR desktop/mobile browsers</sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="https://youtu.be/Hvk4ZjlLaIg">
+        <img src="pin-and-plan-media/00-cover-thumbnail.png" width="100%" alt="Watch 1080p Pin & Plan Demo Video on YouTube" />
+      </a>
+      <br /><b>▶ <a href="https://youtu.be/Hvk4ZjlLaIg">Watch 1080p Demo Video on YouTube ↗</a></b><br /><sub>42 s hands-only Quest 3 Passthrough AR walkthrough with stereo harmonic audio</sub>
     </td>
   </tr>
 </table>

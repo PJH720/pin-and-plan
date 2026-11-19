@@ -57,6 +57,12 @@ body {
   touch-action: none;
 }
 
+.hud-header[hidden],
+.hud-hint[hidden],
+.hud-dock-wrap[hidden] {
+  display: none !important;
+}
+
 /* Compact daylight frosted glass header (< 8% viewport height) */
 .hud-header {
   position: fixed;
