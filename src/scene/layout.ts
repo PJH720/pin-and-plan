@@ -1,8 +1,9 @@
 import { BLOCKS, TASKS } from '../planner/content.js';
 
 /**
- * Layout from specs/001-morning-planner/plan.md, in anchor space: the origin
- * is the head at session start, -z is forward, y is up from eye height.
+ * Layout v2 in anchor space: the origin is the head at session start,
+ * -z is forward, y is up from eye height.
+ * Every grabbable centre sits at least 12 cm apart within the 60 cm reach arc (AC-12, AC-24).
  */
 export interface Spot {
   x: number;
@@ -16,21 +17,23 @@ const DEG = Math.PI / 180;
 
 export const TOKEN_SIZE = { width: 0.095, height: 0.04, depth: 0.01 } as const;
 export const BLOCK_SIZE = { width: 0.19, height: 0.27 } as const;
-export const END_CARD_SIZE = { width: 0.22, height: 0.06 } as const;
-export const CHIP_SIZE = { width: 0.16, height: 0.036 } as const;
-export const ORB_RADIUS = 0.035;
-export const RESET_RADIUS = 0.03;
+export const END_CARD_SIZE = { width: 0.25, height: 0.075 } as const;
+export const CHIP_SIZE = { width: 0.165, height: 0.038 } as const;
+export const TRAY_RAIL_SIZE = { width: 0.45, height: 0.2 } as const;
+export const ORB_RADIUS = 0.036;
+export const ORB_HALO_RADIUS = 0.056;
+export const RESET_RADIUS = 0.031;
 /** A release within this distance of a block centre is a drop on it (AC-1). */
 export const DROP_RADIUS = 0.16;
 /** Near-pinch activation radius for orb and reset control (spec.md). */
 export const ACTIVATE_RADIUS = 0.06;
 /** Slot centres relative to the block panel centre, + is up. */
-export const SLOT_OFFSETS_Y = [0.06, -0.06] as const;
+export const SLOT_OFFSETS_Y = [0.052, -0.068] as const;
 /** Head pose used on the flat page, before an AR session. */
 export const FLAT_EYE = { x: 0, y: 1.6, z: 0 } as const;
 
 /** Tokens sit this far in front of a block panel. */
-const SLOT_LIFT = 0.008;
+const SLOT_LIFT = 0.01;
 const BLOCK_ANGLES = [-36, -12, 12, 36];
 const BLOCK_RADIUS = 0.5;
 const BLOCK_BELOW = 0.2;
@@ -40,7 +43,7 @@ const TRAY_BELOW = 0.34;
 const CONTROL_ANGLE = 52;
 const CONTROL_RADIUS = 0.42;
 const CONTROL_BELOW = 0.3;
-const END_CARD_BELOW = 0.01;
+const END_CARD_BELOW = 0.012;
 
 function polar(angleDeg: number, radius: number, below: number): Spot {
   const angle = angleDeg * DEG;
@@ -84,6 +87,12 @@ export const TRAY_SPOTS: readonly Spot[] = TASKS.map((_task, index) => {
     yaw: Math.atan2(-x, forward),
   };
 });
+
+export const TRAY_RAIL_SPOT = {
+  x: 0,
+  y: -TRAY_BELOW - 0.028,
+  z: -(TRAY_FORWARD[0] + TRAY_FORWARD[1]) / 2,
+} as const;
 
 export const ORB_SPOT: Spot = polar(
   CONTROL_ANGLE,

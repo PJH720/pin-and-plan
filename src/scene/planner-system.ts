@@ -8,6 +8,15 @@ import {
   type Entity,
   type Object3D,
 } from '@iwsdk/core';
+import type { BlockHighlight } from '../design/canvas.js';
+import {
+  arcLift,
+  easeOutCubic,
+  refusedShakeX,
+  snapSettleScale,
+} from '../design/motion.js';
+import { MOTION } from '../design/tokens.js';
+import type { OrbVisualState } from '../feedback/hint.js';
 import {
   playAgentMoveSound,
   playFinishSound,
@@ -39,24 +48,21 @@ export interface PlannerSnapshot {
   placements: Placement[];
 }
 
+export type StateListener = (snapshot: PlannerSnapshot) => void;
+
 declare global {
   interface Window {
     __planner: PlannerSnapshot;
   }
 }
 
-/** Staged agent timing from AC-5: 0.5 s apart, ~0.4 s eased move duration. */
-const AGENT_STEP_INTERVAL = 0.5;
-const AGENT_MOVE_DURATION = 0.4;
-const SLIDE_DURATION = 0.24;
-const GRAB_SCALE = 1.06;
 /** The head pose is zero on the first XR frames; wait for a real one. */
 const MIN_HEAD_DISTANCE_SQ = 1e-6;
 const HANDEDNESSES = ['left', 'right'] as const;
 
 /**
  * Planner state, hand interactions (pin, hand over, take back, reset), staged
- * command queue, feedback and the read-only `window.__planner` test hook.
+ * command queue, spatial feedback, and the read-only `window.__planner` test hook.
  */
 export class PlannerSystem extends createSystem({
   grabbed: { required: [Grabbed] },
@@ -65,6 +71,7 @@ export class PlannerSystem extends createSystem({
   private rig!: Rig;
   private tokensByEntity = new Map<number, TokenView>();
   private tokensByTask = new Map<string, TokenView>();
+  private listeners = new Set<StateListener>();
   private pins: Pins = {};
   private placements: Placement[] = [];
   private phase: Phase = 'intro';
@@ -72,6 +79,7 @@ export class PlannerSystem extends createSystem({
   private agentQueue: MoveCommand[] = [];
   private agentStepTimer = 0;
   private agentMoveTailTimer = 0;
+  private agentStepCount = 0;
   private immersive: boolean | undefined;
   private anchorPending = false;
   private headPosition!: Vector3;
@@ -114,6 +122,52 @@ export class PlannerSystem extends createSystem({
     );
   }
 
+  getRig(): Rig {
+    return this.rig;
+  }
+
+  subscribe(listener: StateListener): () => void {
+    this.listeners.add(listener);
+    listener(this.getSnapshot());
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  /** Non-XR desktop preview grab entry point. */
+  desktopGrab(token: TokenView): boolean {
+    if (this.phase === 'agent') {
+      return false;
+    }
+    unlockAudio();
+    playGrabSound();
+    token.held = true;
+    token.moving = false;
+    token.settleElapsed = -1;
+    token.shakeElapsed = -1;
+    token.object.scale.set(
+      MOTION.grabScale,
+      MOTION.grabScale,
+      MOTION.grabScale,
+    );
+    return true;
+  }
+
+  /** Non-XR desktop preview drop entry point. */
+  desktopRelease(token: TokenView): void {
+    this.finishRelease(token);
+  }
+
+  /** Triggers the Agent Orb (callable by hand pinch or desktop preview click). */
+  triggerOrb(): void {
+    this.activateOrb();
+  }
+
+  /** Triggers Reset (callable by hand pinch or desktop preview click). */
+  triggerReset(): void {
+    this.activateReset();
+  }
+
   update(delta: number): void {
     if (this.anchorPending) {
       this.tryAnchorToHead();
@@ -122,12 +176,30 @@ export class PlannerSystem extends createSystem({
     this.checkNearPinchControls();
     this.updateAgentQueue(delta);
     this.updateTokens(delta);
+    this.updateBlockHighlights();
     this.rig.chips.update(delta);
-    this.rig.hint.update(
-      delta,
-      this.phase === 'intro',
-      this.phase === 'pinning' && !this.agentHasRun,
-    );
+    this.rig.endCard.update(delta);
+
+    const orbState: OrbVisualState =
+      this.phase === 'agent'
+        ? 'thinking'
+        : this.phase === 'done'
+          ? 'done'
+          : this.phase === 'pinning' && !this.agentHasRun
+            ? 'ready'
+            : 'intro';
+
+    this.rig.hint.update(delta, this.phase === 'intro', orbState);
+  }
+
+  private notifyListeners(): void {
+    if (this.listeners.size === 0) {
+      return;
+    }
+    const snapshot = this.getSnapshot();
+    for (const listener of this.listeners) {
+      listener(snapshot);
+    }
   }
 
   private getSnapshot(): PlannerSnapshot {
@@ -248,7 +320,13 @@ export class PlannerSystem extends createSystem({
     playGrabSound();
     token.held = true;
     token.moving = false;
-    token.object.scale.set(GRAB_SCALE, GRAB_SCALE, GRAB_SCALE);
+    token.settleElapsed = -1;
+    token.shakeElapsed = -1;
+    token.object.scale.set(
+      MOTION.grabScale,
+      MOTION.grabScale,
+      MOTION.grabScale,
+    );
   }
 
   private onRelease(entity: Entity): void {
@@ -256,6 +334,10 @@ export class PlannerSystem extends createSystem({
     if (token === undefined) {
       return;
     }
+    this.finishRelease(token);
+  }
+
+  private finishRelease(token: TokenView): void {
     token.object.scale.set(1, 1, 1);
     if (!token.held || this.phase === 'agent') {
       token.held = false;
@@ -271,10 +353,56 @@ export class PlannerSystem extends createSystem({
     const outcome = this.tryPin(token.taskId, blockId);
     if (outcome === 'refused') {
       playRefusedSound();
+      token.shakeElapsed = 0;
       this.returnToken(token);
     } else if (outcome === 'missed') {
       this.returnToken(token);
     }
+  }
+
+  /**
+   * Real-time drop target affordance & Error Prevention (MIT Media Lab HAX #5):
+   * Illuminates the hovered block indigo when drop is valid, crimson when full (2 pins).
+   * Zero per-frame allocations.
+   */
+  private updateBlockHighlights(): void {
+    let hoveredBlockId: string | null = null;
+    let hoveredTaskId: string | null = null;
+
+    const tokens = this.rig.tokens;
+    for (let i = 0; i < tokens.length; i += 1) {
+      if (tokens[i].held) {
+        hoveredBlockId = this.nearestBlock(tokens[i]);
+        hoveredTaskId = tokens[i].taskId;
+        break;
+      }
+    }
+
+    const blocks = this.rig.blocks;
+    for (let i = 0; i < blocks.length; i += 1) {
+      const block = blocks[i];
+      let nextState: BlockHighlight = 'idle';
+      if (hoveredBlockId === block.blockId && hoveredTaskId !== null) {
+        nextState = this.isBlockFullOfOtherPins(block.blockId, hoveredTaskId)
+          ? 'full'
+          : 'valid';
+      }
+      if (block.highlight !== nextState) {
+        block.highlight = nextState;
+        block.material.map = block.textures[nextState];
+        block.material.needsUpdate = true;
+      }
+    }
+  }
+
+  private isBlockFullOfOtherPins(blockId: string, taskId: string): boolean {
+    let count = 0;
+    for (const [pinnedTask, pinnedBlock] of Object.entries(this.pins)) {
+      if (pinnedBlock === blockId && pinnedTask !== taskId) {
+        count += 1;
+      }
+    }
+    return count >= SLOTS_PER_BLOCK;
   }
 
   /** The block whose centre is nearest to the token, within DROP_RADIUS. */
@@ -284,7 +412,8 @@ export class PlannerSystem extends createSystem({
     token.object.getWorldPosition(this.tokenPosition);
     let nearest: string | null = null;
     let nearestDistance = DROP_RADIUS;
-    for (const block of BLOCKS) {
+    for (let i = 0; i < BLOCKS.length; i += 1) {
+      const block = BLOCKS[i];
       const spot = BLOCK_SPOTS[block.id];
       this.blockPosition.set(spot.x, spot.y, spot.z);
       anchor.localToWorld(this.blockPosition);
@@ -349,6 +478,7 @@ export class PlannerSystem extends createSystem({
         type: 'UPDATE',
         phase: this.placements.length === TASKS.length ? 'done' : 'pinning',
       });
+      this.notifyListeners();
       return 'pinned';
     }
 
@@ -411,6 +541,7 @@ export class PlannerSystem extends createSystem({
         phase: this.placements.length === TASKS.length ? 'done' : 'pinning',
       });
     }
+    this.notifyListeners();
     return 'pinned';
   }
 
@@ -427,6 +558,7 @@ export class PlannerSystem extends createSystem({
     const changes = diff(this.placements, next);
     if (changes.moves.length === 0 && changes.slides.length === 0) {
       this.agentHasRun = true;
+      this.notifyListeners();
       return;
     }
     this.agentHasRun = true;
@@ -458,6 +590,7 @@ export class PlannerSystem extends createSystem({
         phase: this.placements.length === TASKS.length ? 'done' : 'pinning',
       });
     }
+    this.notifyListeners();
   }
 
   /**
@@ -469,6 +602,7 @@ export class PlannerSystem extends createSystem({
     this.agentQueue.length = 0;
     this.agentStepTimer = 0;
     this.agentMoveTailTimer = 0;
+    this.agentStepCount = 0;
     this.agentHasRun = false;
     this.pins = {};
     this.placements = [];
@@ -480,6 +614,8 @@ export class PlannerSystem extends createSystem({
         grabSystem?.forceRelease(token.entity);
         token.held = false;
       }
+      token.settleElapsed = -1;
+      token.shakeElapsed = -1;
       token.object.scale.set(1, 1, 1);
       this.applyCommand({
         type: 'SPAWN',
@@ -490,11 +626,13 @@ export class PlannerSystem extends createSystem({
     this.rig.chips.clear();
     this.rig.hint.reset();
     this.applyCommand({ type: 'UPDATE', phase: 'intro' });
+    this.notifyListeners();
   }
 
   private enqueueAgentMoves(moves: readonly MoveCommand[]): void {
     this.agentQueue = moves.slice(1);
-    this.agentStepTimer = AGENT_STEP_INTERVAL;
+    this.agentStepTimer = MOTION.agentStepInterval;
+    this.agentStepCount = 0;
     this.applyCommand({ type: 'UPDATE', phase: 'agent' });
     this.applyCommand(moves[0]);
   }
@@ -508,8 +646,9 @@ export class PlannerSystem extends createSystem({
       while (this.agentStepTimer <= 0 && this.agentQueue.length > 0) {
         const nextCmd = this.agentQueue.shift()!;
         this.applyCommand(nextCmd);
-        this.agentStepTimer += AGENT_STEP_INTERVAL;
+        this.agentStepTimer += MOTION.agentStepInterval;
       }
+      this.notifyListeners();
       return;
     }
     this.agentMoveTailTimer -= delta;
@@ -519,6 +658,7 @@ export class PlannerSystem extends createSystem({
         type: 'UPDATE',
         phase: this.placements.length === TASKS.length ? 'done' : 'pinning',
       });
+      this.notifyListeners();
     }
   }
 
@@ -536,7 +676,8 @@ export class PlannerSystem extends createSystem({
         spot.y,
         spot.z,
         spot.yaw,
-        SLIDE_DURATION,
+        MOTION.slideDuration,
+        0,
       );
       return;
     }
@@ -564,6 +705,7 @@ export class PlannerSystem extends createSystem({
         token.object.position.copy(token.home);
         token.object.rotation.set(0, spot.yaw, 0);
         token.moving = false;
+        token.settleElapsed = 0;
         playSnapSound();
       } else if (command.by === 'agent') {
         this.startTokenMotion(
@@ -572,11 +714,13 @@ export class PlannerSystem extends createSystem({
           spot.y,
           spot.z,
           spot.yaw,
-          AGENT_MOVE_DURATION,
+          MOTION.agentMoveDuration,
+          MOTION.agentArcLift,
         );
-        this.agentMoveTailTimer = AGENT_MOVE_DURATION;
+        this.agentMoveTailTimer = MOTION.agentMoveDuration;
         this.rig.chips.show(command.blockId, command.slot, command.reason);
-        playAgentMoveSound();
+        playAgentMoveSound(this.agentStepCount);
+        this.agentStepCount += 1;
       } else {
         this.startTokenMotion(
           token,
@@ -584,7 +728,8 @@ export class PlannerSystem extends createSystem({
           spot.y,
           spot.z,
           spot.yaw,
-          SLIDE_DURATION,
+          MOTION.slideDuration,
+          0,
         );
       }
       return;
@@ -599,7 +744,7 @@ export class PlannerSystem extends createSystem({
     if (command.phase !== undefined) {
       const previousPhase = this.phase;
       this.phase = command.phase;
-      this.rig.endCard.visible = command.phase === 'done';
+      this.rig.endCard.setVisible(command.phase === 'done');
       if (command.phase === 'done' && previousPhase !== 'done') {
         playFinishSound();
       }
@@ -628,6 +773,7 @@ export class PlannerSystem extends createSystem({
     targetZ: number,
     targetYaw: number,
     duration: number,
+    arcHeight: number,
   ): void {
     token.startPos.copy(token.object.position);
     token.startYaw = token.object.rotation.y;
@@ -635,6 +781,7 @@ export class PlannerSystem extends createSystem({
     token.homeYaw = targetYaw;
     token.moveElapsed = 0;
     token.moveDuration = duration;
+    token.moveArc = arcHeight;
     token.moving = true;
   }
 
@@ -645,7 +792,8 @@ export class PlannerSystem extends createSystem({
       token.home.y,
       token.home.z,
       token.homeYaw,
-      SLIDE_DURATION,
+      MOTION.slideDuration,
+      0,
     );
   }
 
@@ -653,23 +801,54 @@ export class PlannerSystem extends createSystem({
     const tokens = this.rig.tokens;
     for (let i = 0; i < tokens.length; i += 1) {
       const token = tokens[i];
-      if (!token.moving || token.held) {
+      if (token.held) {
         continue;
       }
-      token.moveElapsed += delta;
-      const t = Math.min(1, token.moveElapsed / token.moveDuration);
-      const inv = 1 - t;
-      const eased = 1 - inv * inv * inv;
-      token.object.position.lerpVectors(token.startPos, token.home, eased);
-      token.object.rotation.set(
-        0,
-        token.startYaw + (token.homeYaw - token.startYaw) * eased,
-        0,
-      );
-      if (t >= 1) {
-        token.object.position.copy(token.home);
-        token.object.rotation.set(0, token.homeYaw, 0);
-        token.moving = false;
+
+      // 1. Flight / slide motion with parabolic arc lift
+      if (token.moving) {
+        token.moveElapsed += delta;
+        const t = Math.min(1, token.moveElapsed / token.moveDuration);
+        const eased = easeOutCubic(t);
+        token.object.position.lerpVectors(token.startPos, token.home, eased);
+        if (token.moveArc > 0) {
+          token.object.position.y += arcLift(t, token.moveArc);
+          token.object.position.z += arcLift(t, token.moveArc * 0.45);
+        }
+        token.object.rotation.set(
+          0,
+          token.startYaw + (token.homeYaw - token.startYaw) * eased,
+          0,
+        );
+        if (t >= 1) {
+          token.object.position.copy(token.home);
+          token.object.rotation.set(0, token.homeYaw, 0);
+          token.moving = false;
+        }
+      }
+
+      // 2. Tactile snap-settle pulse after user pin
+      if (token.settleElapsed >= 0) {
+        token.settleElapsed += delta;
+        const u = token.settleElapsed / MOTION.snapSettleDuration;
+        if (u >= 1) {
+          token.settleElapsed = -1;
+          token.object.scale.set(1, 1, 1);
+        } else {
+          const s = snapSettleScale(u);
+          token.object.scale.set(s, s, s);
+        }
+      }
+
+      // 3. Subtle horizontal shake on refused drop (AC-2)
+      if (token.shakeElapsed >= 0) {
+        token.shakeElapsed += delta;
+        const u = token.shakeElapsed / MOTION.refusedShakeDuration;
+        if (u >= 1) {
+          token.shakeElapsed = -1;
+        } else {
+          token.object.position.x += refusedShakeX(u);
+        }
       }
     }
   }
